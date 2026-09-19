@@ -7,7 +7,7 @@ from aiogram.types import BufferedInputFile
 from aiohttp import web, ClientSession
 
 # Вставьте ваш НОВЫЙ токен от @BotFather в кавычки
-TOKEN = os.getenv("8705937681:AAEUdjyHJK5N5JpRZ4VWriGM2VfPCotN540")
+TOKEN = "8705937681:AAEUdjyHJK5N5JpRZ4VWriGM2VfPCotN540"
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
