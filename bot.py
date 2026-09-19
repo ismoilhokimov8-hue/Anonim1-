@@ -1,57 +1,65 @@
 import os
-import re
 import asyncio
+from urllib.parse import quote
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import CommandStart
+from aiogram.types import BufferedInputFile
 from aiohttp import web, ClientSession
 
-# Вставьте сюда ваш НОВЫЙ токен от @BotFather
-TOKEN = os.getenv("BOT_TOKEN", "8705937681:AAEUdjyHJK5N5JpRZ4VWriGM2VfPCotN540")
+# Вставьте ваш НОВЫЙ токен от @BotFather в кавычки
+TOKEN = os.getenv("8705937681:AAEUdjyHJK5N5JpRZ4VWriGM2VfPCotN540")
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
-# Функция получения видео без водяного знака
-async def get_tiktok_video(url: str):
-    api_url = "https://www.tikwm.com/api/"
-    data = {"url": url, "hd": 1}
-    async with ClientSession() as session:
-        async with session.post(api_url, data=data) as resp:
-            res = await resp.json()
-            if res.get("code") == 0 and "data" in res:
-                return res["data"].get("play")
+# Функция генерации картинки через ИИ (Pollinations.ai)
+async def generate_ai_image(prompt: str):
+    encoded_prompt = quote(prompt)
+    image_url = f"https://pollinations.ai/p/{encoded_prompt}?width=1024&height=1024&seed=42&model=flux"
+    
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    }
+    
+    async with ClientSession(headers=headers) as session:
+        async with session.get(image_url, timeout=30) as resp:
+            if resp.status == 200:
+                return await resp.read()
     return None
 
 @dp.message(CommandStart())
 async def start_cmd(message: types.Message):
-    await message.answer("👋 Привет! Отправь мне ссылку на видео из TikTok, и я скачаю его без водяного знака!")
+    await message.answer(
+        "🎨 **Привет! Я ИИ-Художник.**\n\n"
+        "Напиши мне любое описание картинки (например: *«красивый котик в космосе, неоновый стиль»*), и я сгенерирую для тебя изображение!",
+        parse_mode="Markdown"
+    )
 
 @dp.message()
-async def download_handler(message: types.Message):
-    text = message.text or ""
-    match = re.search(r'https?://[^\s]+', text)
-    if not match or ("tiktok.com" not in text and "vt.tiktok.com" not in text):
-        await message.answer("⚠️ Пожалуйста, отправьте корректную ссылку на видео из TikTok!")
+async def generate_handler(message: types.Message):
+    prompt = message.text or ""
+    
+    if len(prompt) < 3:
+        await message.answer("⚠️ Пожалуйста, напишите более подробное описание для картинки.")
         return
 
-    tiktok_url = match.group(0)
-    msg = await message.answer("⏳ Скачиваю видео, подождите...")
+    msg = await message.answer("🎨 **Генерирую картинку с помощью ИИ...**\nЭто займет около 5-10 секунд.")
 
     try:
-        video_url = await get_tiktok_video(tiktok_url)
-        if video_url:
-            await message.answer_video(video=video_url, caption="🎬 Вот ваше видео без водяного знака!")
+        image_bytes = await generate_ai_image(prompt)
+        if image_bytes:
+            photo = BufferedInputFile(image_bytes, filename="ai_art.jpg")
+            await message.answer_photo(photo=photo, caption=f"🖼 **Результат по запросу:**\n_{prompt}_", parse_mode="Markdown")
             await msg.delete()
         else:
-            await msg.edit_text("❌ Не удалось получить видео. Проверьте ссылку или попробуйте позже.")
-    except Exception as e:
-        await msg.edit_text("❌ Произошла ошибка при загрузке видео.")
+            await msg.edit_text("❌ Не удалось сгенерировать картинку. Попробуйте еще раз.")
+    except Exception:
+        await msg.edit_text("❌ Ошибка при генерации. Попробуйте сформулировать запрос иначе.")
 
 async def handle_ping(request):
-    return web.Response(text="Bot is running 24/7!")
+    return web.Response(text="AI Bot is running 24/7!")
 
 async def main():
-    # Фейковый веб-сервер для поддержки Render Web Service
     app = web.Application()
     app.router.add_get("/", handle_ping)
     runner = web.AppRunner(app)
@@ -60,13 +68,9 @@ async def main():
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
 
-    # Сброс возможных зависших сессий и запуск
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
     asyncio.run(main())
-
-
-
     
